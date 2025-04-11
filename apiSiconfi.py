@@ -7,18 +7,15 @@ tipo_relatorio = "RREO"
 esfera = "M"
 cod_ibge_ce = 23  
 num_anexo = "03"
-nome_arquivo = "RREO_Anexo03_Todos_Municipios_CE.csv"
+nome_arquivo = "RREO_Anexo03_Municipios_Sertao_Central_CE.csv"
 anos = range(2015, 2025)
 periodos = range(1, 7)
 
-'''Códigos do sertão Central: 2310407, 2307635, 2306603, 2303006, 2302800, 2304608, 2313005, 2312700, 2311405,
-    2311306, 2310506, 2308351, 2305332, 2305266, 2304269, 2303931, 2301851, 2310902,
-    2308500, 2312205'''
     
-codigos_municipios_ce = [
+codigos_municipios_sertao_central_ce = [
     2310407, 2307635, 2306603, 2303006, 2302800, 2304608, 2313005, 2312700, 2311405,
     2311306, 2310506, 2308351, 2305332, 2305266, 2304269, 2303931, 2301851, 2310902,
-    2308500, 2312205
+    2308500, 2312205, 2302404
 ]  
 
 def coletar_dados():
