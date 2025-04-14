@@ -1,0 +1,110 @@
+import requests
+import pandas as pd
+import time
+from tqdm import tqdm
+import os
+
+tipo_relatorio = "RREO"
+esfera = "E"
+num_anexo = "03"
+anos = range(2015, 2025)
+periodos = range(1, 7)
+nome_base_arquivo = f"RREO_Anexo{num_anexo}_Municipios_Sertao_Central_CE"
+
+codigo_ce = [
+    2310407, 2307635, 2306603, 2303006, 2302800, 2304608, 2313005, 2312700, 2311405,
+    2311306, 2310506, 2308351, 2305332, 2305266, 2304269, 2303931, 2301851, 2310902,
+    2308500, 2312205, 2302404
+]
+
+def coletar_dados(codigos_ibge):
+    url_base = "https://apidatalake.tesouro.gov.br/ords/siconfi/tt/rreo?"
+    dados = []
+    combinacoes = [(ano, periodo, cod_ibge) for ano in anos for periodo in periodos for cod_ibge in codigos_ibge]
+
+    for ano, periodo, cod_ibge in tqdm(combinacoes, desc="Coletando dados"):
+        pagina = 1
+        while True:
+            url = (
+                f"{url_base}an_exercicio={ano}&nr_periodo={periodo}&"
+                f"co_tipo_demonstrativo={tipo_relatorio}&"
+                f"no_anexo=RREO-Anexo%20{num_anexo}&"
+                f"co_esfera={esfera}&id_ente={cod_ibge}&page={pagina}&limit=5000"
+            )
+
+            try:
+                resposta = requests.get(url, timeout=30)
+                resposta.raise_for_status()
+                
+                dados_json = resposta.json()
+                itens = dados_json.get("items", [])
+                
+                if itens:
+                    dados.extend(itens)
+                    print(f"Município {cod_ibge} - Página {pagina} coletada ({len(itens)} registros)")
+                    if len(itens) < 5000:
+                        break
+                    pagina += 1
+                else:
+                    if pagina == 1:
+                        print(f"Nenhum dado encontrado para {ano}-{periodo}-{cod_ibge}")
+                    break
+                    
+                time.sleep(1)  
+                
+            except requests.exceptions.RequestException as e:
+                print(f"Erro ao acessar {url}: {str(e)}")
+                break
+
+    return pd.DataFrame(dados) if dados else pd.DataFrame()
+
+def converter_colunas(df):
+    for coluna in df.columns:
+        if df[coluna].dtype == 'object':
+            try:
+                df[coluna] = pd.to_numeric(df[coluna])
+            except ValueError:
+                continue
+    return df
+
+def salvar_csv(df, nome_base):
+    contador = 1
+    nome_arquivo = f"{nome_base}.csv"
+    while os.path.exists(nome_arquivo):
+        nome_arquivo = f"{nome_base}_{contador}.csv"
+        contador += 1
+    df.to_csv(nome_arquivo, index=False, sep=',', encoding='utf-8-sig')
+    return nome_arquivo
+
+def main():
+    print("Iniciando coleta de dados...")
+
+    df_final = coletar_dados(codigo_ce)
+
+    if not df_final.empty:
+        df_final = converter_colunas(df_final)
+
+        remover_colunas = ['rotulo', 'demonstrativo', 'uf', 'anexo', 'esfera']
+        df_final.drop(columns=remover_colunas, inplace=True, errors='ignore')
+
+        qtd_antes = len(df_final)
+        df_final.drop_duplicates(inplace=True)
+        qtd_depois = len(df_final)
+        print(f"Remoção de dados duplicados: {qtd_antes - qtd_depois} dados removidos.")
+
+        nome_arquivo = salvar_csv(df_final, nome_base_arquivo)
+
+        print(f"\nO arquivo foi salvo como: {nome_arquivo}")
+        print(f"Total de dados coletados: {len(df_final)}")
+        print(f"Colunas disponíveis: {df_final.columns.tolist()}")
+
+        colunas_vazias = df_final.columns[df_final.isnull().all()].tolist()
+        if colunas_vazias:
+            print(f"Colunas vazias: {colunas_vazias}")
+        if 'id_ente' in df_final.columns:
+            print(f"Códigos IBGE usados: {df_final['id_ente'].unique().tolist()}")
+    else:
+        print("\nNenhum dado coletado.")
+
+if __name__ == "__main__":
+    main()
